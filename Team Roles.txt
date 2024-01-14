@@ -1,0 +1,36 @@
+BIG Tables
+
+- Student *
+- Exam*
+- Instructor*
+- Question*
+- Question_Choices*
+- Teaches_At*
+- Student_Answer
+- Exam_Question*
+- Student_Exam*
+
+
+
+
+small Tables
+
+- Branch
+- Intake
+- Departement
+- Class
+- Track
+- Course
+
+
+
+ Roles 
+
+
+	Omar : Student , Question , Question_Choices , Branch , Intake
+
+
+	Dalia : Instructor , Teaches_At , Student_Answer , Department , Class
+
+
+	Norhan : Exam , Exam_Question , Student_Exam , Track , Course
