@@ -19,7 +19,7 @@ create table Department
 	ID int primary key identity(1,1),
 	[Name] nvarchar(100) not null,
 	BranchID int not null,
-	constraint fk_branch foreign key (BranchID) references Branch(ID)
+	constraint fk_branch foreign key (BranchID) references Branch(ID) ON DELETE CASCADE
 )
 
 create table Track
@@ -28,7 +28,7 @@ create table Track
 	[Name] nvarchar(100) not null,
 	[Description] nvarchar(max) ,
 	DepartmentID int not null,
-	constraint fk_department foreign key (DepartmentID) references Department(ID)
+	constraint fk_department foreign key (DepartmentID) references Department(ID) ON DELETE CASCADE
 )
 
 create table Class
@@ -37,7 +37,7 @@ create table Class
 	[Name] nvarchar(100) not null,
 	[Floor] int not null,
 	BranchID int not null,
-	constraint fk_ClassBranch foreign key (BranchID) references Branch(ID)
+	constraint fk_ClassBranch foreign key (BranchID) references Branch(ID) ON DELETE CASCADE
 )
 
 create table Student
@@ -47,11 +47,11 @@ create table Student
 	Email nvarchar(450) collate SQL_Latin1_General_CP1_CI_AS not null,
 	DOB date not null,
 	IntakeID int not null,
-	TrackID int not null,
-	ClassID int not null,
-	constraint fk_StudentIntake foreign key (IntakeID) references Intake(ID),
-	constraint fk_StudentTrack foreign key (TrackID) references Track(ID),
-	constraint fk_StudentClass foreign key (ClassID) references Class(ID),
+	TrackID int,
+	ClassID int,
+	constraint fk_StudentIntake foreign key (IntakeID) references Intake(ID) ON DELETE CASCADE,
+	constraint fk_StudentTrack foreign key (TrackID) references Track(ID) ON DELETE SET NULL,
+	constraint fk_StudentClass foreign key (ClassID) references Class(ID) ON DELETE NO ACTION,
 	constraint uq_Email unique (Email)
 )
 
@@ -83,9 +83,9 @@ create table Question
 	[Type] nvarchar(100) not null,
 	CorrectChoiceNumber int ,
 	CourseID int not null,
-	InstructorID int not null,
-	constraint fk_CourseQuestion foreign key (CourseID) references Course(ID),
-	constraint fk_InstructorQuestion foreign key (InstructorID) references Instructor(ID),
+	InstructorID int,
+	constraint fk_CourseQuestion foreign key (CourseID) references Course(ID) ON DELETE CASCADE,
+	constraint fk_InstructorQuestion foreign key (InstructorID) references Instructor(ID) ON DELETE SET NULL,
 	check(CorrectChoiceNumber = 1 or CorrectChoiceNumber = 2 or CorrectChoiceNumber = 3 or CorrectChoiceNumber = 4 ),
 	check([Type] = 'Multiple' or [Type] = 'Bool' or [Type] = 'Text')
 )
@@ -94,8 +94,8 @@ create table Question_Choices
 (
 	QuestionID int not null,
 	ChoiceNumber int not null,
-	Choice nvarchar(450) not null,
-	constraint fk_QuestionChoice foreign key (QuestionID) references Question(ID),
+	Choice nvarchar(450),
+	constraint fk_QuestionChoice foreign key (QuestionID) references Question(ID) ON DELETE CASCADE,
 	constraint pk_QuestionChoices primary key (QuestionID , ChoiceNumber),
 	check(ChoiceNumber = 1 or ChoiceNumber = 2 or ChoiceNumber = 3 or ChoiceNumber = 4 )
 )
@@ -110,9 +110,9 @@ create table Exam
 	Total_Time numeric(3,2),
 	[Year] int not null,
 	CourseID int not null,
-	InstructorID int not null,
-	constraint fk_CourseExam foreign key (CourseID) references Course(ID),
-	constraint fk_InstructorExam foreign key (InstructorID) references Instructor(ID),
+	InstructorID int,
+	constraint fk_CourseExam foreign key (CourseID) references Course(ID) ON DELETE CASCADE,
+	constraint fk_InstructorExam foreign key (InstructorID) references Instructor(ID) ON DELETE SET NULL,
 	check (Start_Time <  End_Time)
 )
 
@@ -120,10 +120,10 @@ create table Teaches_At
 (
 	CourseID int not null,
 	ClassID int not null,
-	InstructorID int not null,
-	constraint fk_Teaches_At_Course foreign key (CourseID) references Course(ID),
-	constraint fk_Teaches_At_Instructor foreign key (InstructorID) references Instructor(ID),
-	constraint fk_Teaches_At_Class foreign key (ClassID) references Class(ID),
+	InstructorID int,
+	constraint fk_Teaches_At_Course foreign key (CourseID) references Course(ID) ON DELETE CASCADE,
+	constraint fk_Teaches_At_Instructor foreign key (InstructorID) references Instructor(ID) ON DELETE SET NULL,
+	constraint fk_Teaches_At_Class foreign key (ClassID) references Class(ID) ON DELETE CASCADE,
 	constraint pk_CourseClassInstructor primary key ( CourseID , ClassID )
 )
 
@@ -133,8 +133,8 @@ create table Student_Exam
 	StudentID int not null ,
 	ExamID int not null,
 	Degree numeric(5,2),
-	constraint fk_Student_Exam_ExamID foreign key (ExamID) references Exam(ID),
-	constraint fk_Student_Exam_StudentID foreign key (StudentID) references Student(ID),
+	constraint fk_Student_Exam_ExamID foreign key (ExamID) references Exam(ID) ON DELETE CASCADE,
+	constraint fk_Student_Exam_StudentID foreign key (StudentID) references Student(ID) ON DELETE CASCADE,
 	check(Degree >= 0)
 )
 
@@ -144,8 +144,8 @@ create table Exam_Questions
 	QuestionID int not null ,
 	ExamID int not null,
 	Degree numeric(5,2),
-	constraint fk_Exam_Question_ExamID foreign key (ExamID) references Exam(ID),
-	constraint fk_Exam_Question_QuestionID foreign key (QuestionID) references Question(ID),
+	constraint fk_Exam_Question_ExamID foreign key (ExamID) references Exam(ID) ON DELETE CASCADE,
+	constraint fk_Exam_Question_QuestionID foreign key (QuestionID) references Question(ID) ON DELETE NO ACTION,
 	check(Degree >= 0)
 )
 
@@ -155,6 +155,6 @@ create table Student_Answer
 	ExamQuestionID int not null,
 	StudentExamID int not null,
 	Answer nvarchar(max),
-	constraint fk_Answer_ExamQuestion foreign key (ExamQuestionID) references Exam_Questions(ID),
-	constraint fk_Answer_StudentExam foreign key (StudentExamID) references Student_Exam(ID)
+	constraint fk_Answer_ExamQuestion foreign key (ExamQuestionID) references Exam_Questions(ID) ON DELETE CASCADE,
+	constraint fk_Answer_StudentExam foreign key (StudentExamID) references Student_Exam(ID) ON DELETE NO ACTION
 )
