@@ -208,7 +208,7 @@ BEGIN -- Insertion process for Question and Question_Choices Table
 		END
 END;
 
-EXEC CreateQuestion 'WTFF' , 'BOOL' , 1 , 2 
+EXEC CreateQuestion 'ALONE' , 'BOOL' , 1 , 2 
 
 GO
 
@@ -372,6 +372,155 @@ END;
 EXEC UpdateQuestion 3 ,'CHOOSE' , 'MULTIPLE' , 1 , 2 , '3ADSFA' , 'SDAASDF' , 'ASDFDSAF' , 'DSAFSFS'
 EXEC ViewQuestions;
 
-
+GO
 ---------------------------------------------Question and Question_Choices TABLES OPERATIONS #End--------------------------------------------------------------------
+
+
+---------------------------------------------Branch TABLE OPERATIONS #Start--------------------------------------------------------------------
+
+CREATE PROCEDURE CreateBranch @Name NVARCHAR(100) , @Location NVARCHAR(100)
+AS
+BEGIN -- Insertion process for branch
+	IF NOT @Name <> ''
+		print 'An error has occured, you cannot insert a name that is empty';
+	ELSE IF NOT @Location <> ''
+		print 'An error has occured, you cannot insert a location that is empty';
+	ELSE
+		INSERT INTO Branch VALUES (@Name , @Location)
+END
+
+EXEC CreateBranch 'BUSTER' , 'SWORD'
+
+
+GO
+
+
+CREATE PROCEDURE UpdateBranch @ID INT , @Name NVARCHAR(100) , @Location NVARCHAR(100)
+AS
+BEGIN
+	IF NOT EXISTS(SELECT * FROM Branch WHERE ID = @ID)
+		print 'An error has occured , the branch ID you entered does not exist'
+	ELSE IF NOT @Name <> ''
+		print 'An error has occured, you cannot insert a name that is empty';
+	ELSE IF NOT @Location <> ''
+		print 'An error has occured, you cannot insert a location that is empty';
+	ELSE
+		UPDATE Branch SET [Name] = @Name , [Location] = @Location WHERE ID = @ID
+END
+
+EXEC UpdateBranch 1 , 'CLOUD' , 'STRIFE'
+
+GO
+
+CREATE PROCEDURE DeleteBranch @ID INT
+AS
+BEGIN
+	IF NOT EXISTS(SELECT * FROM Branch WHERE ID = @ID)
+		print 'An error has occured , the branch ID you entered does not exist'
+	ELSE
+		DELETE FROM Branch WHERE ID = @ID
+
+END
+
+EXEC DeleteBranch 1
+
+GO
+
+CREATE VIEW BranchData
+AS 
+SELECT * FROM Branch
+
+GO
+
+
+CREATE PROCEDURE ViewBranch @ID INT = NULL
+AS
+BEGIN
+	SELECT * FROM BranchData 
+	WHERE
+	ID = COALESCE(@ID , ID)
+
+END
+
+EXEC ViewBranch
+---------------------------------------------Branch TABLE OPERATIONS #End--------------------------------------------------------------------
+
+
+---------------------------------------------Intake TABLE OPERATIONS #Start--------------------------------------------------------------------
+GO
+
+CREATE PROCEDURE CreateIntake @Name NVARCHAR(100) , @StartTime DATE , @EndTime DATE
+AS
+BEGIN -- Insertion process for branch
+	IF NOT @Name <> ''
+		print 'An error has occured, you cannot insert a name that is empty';
+	ELSE IF NOT @StartTime <> '' OR NOT @EndTime <> ''
+		print 'An error has occured, you cannot insert a start time or end time that is empty';
+	ELSE IF @StartTime > @EndTime
+		print 'An error has occured, you cannot insert a start time that is after end time';
+	ELSE
+		INSERT INTO Intake VALUES (@Name , @StartTime , @EndTime)
+END
+
+EXEC CreateIntake 'Sector 7' , '2001-10-20', '2001-10-21'
+
+
+GO
+
+
+CREATE PROCEDURE UpdateIntake @ID INT , @Name NVARCHAR(100) , @StartTime DATE , @EndTime DATE
+AS
+BEGIN
+	IF NOT EXISTS(SELECT * FROM Intake WHERE ID = @ID)
+		print 'An error has occured , the intake ID you entered does not exist'
+	ELSE IF NOT @Name <> ''
+		print 'An error has occured, you cannot insert a name that is empty';
+	ELSE IF NOT @StartTime <> '' OR NOT @EndTime <> ''
+		print 'An error has occured, you cannot insert a start time or end time that is empty';
+	ELSE IF @StartTime > @EndTime
+		print 'An error has occured, you cannot insert a start time that is after end time';
+	ELSE
+		UPDATE Intake SET [Name] = @Name , Start_Time = @StartTime , End_Time = @EndTime WHERE ID = @ID
+END
+
+EXEC UpdateIntake 1 , 'SECTOR 6' , '2024-2-29' , '2024-3-1'
+
+GO
+
+CREATE PROCEDURE DeleteIntake @ID INT
+AS
+BEGIN
+	IF NOT EXISTS(SELECT * FROM Intake WHERE ID = @ID)
+		print 'An error has occured , the intake ID you entered does not exist'
+	ELSE
+		DELETE FROM Intake WHERE ID = @ID
+
+END
+
+EXEC DeleteIntake 1
+
+GO
+
+CREATE VIEW IntakeData
+AS 
+SELECT * FROM Intake
+
+GO
+
+
+CREATE PROCEDURE ViewIntake @ID INT = NULL
+AS
+BEGIN
+	SELECT * FROM IntakeData
+	WHERE
+	ID = COALESCE(@ID , ID)
+
+END
+
+EXEC ViewIntake
+
+
+
+---------------------------------------------Intake TABLE OPERATIONS #End--------------------------------------------------------------------
+
 
