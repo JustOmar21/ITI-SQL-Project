@@ -183,6 +183,8 @@ BEGIN -- Insertion process for Question and Question_Choices Table
 					SET @InsertedQuestionID = SCOPE_IDENTITY();
 					INSERT INTO Question_Choices VALUES ( @InsertedQuestionID , 1 , 'True');
 					INSERT INTO Question_Choices VALUES ( @InsertedQuestionID , 2 , 'False');
+					INSERT INTO Question_Choices VALUES ( @InsertedQuestionID , 3 , NULL);
+					INSERT INTO Question_Choices VALUES ( @InsertedQuestionID , 4 , NULL);
 				END 
 			ELSE IF @Choice1 IS NULL
 				PRINT 'An error has occured, Type Text Requires that the first choice to be entered'
@@ -191,6 +193,9 @@ BEGIN -- Insertion process for Question and Question_Choices Table
 					INSERT INTO Question VALUES (@Body , @Type , @CorrectChoice , @CourseID , @InstuctorID);
 					SET @InsertedQuestionID = SCOPE_IDENTITY();
 					INSERT INTO Question_Choices VALUES ( @InsertedQuestionID , 1 , @Choice1);
+					INSERT INTO Question_Choices VALUES ( @InsertedQuestionID , 2 , NULL);
+					INSERT INTO Question_Choices VALUES ( @InsertedQuestionID , 3 , NULL);
+					INSERT INTO Question_Choices VALUES ( @InsertedQuestionID , 4 , NULL);
 				END
 			ELSE IF @Choice1 IS NULL OR @Choice2 IS NULL OR @Choice3 IS NULL OR @Choice4 IS NULL
 				PRINT 'An error has occured, Type Multiple Requires that all choices be entered'
