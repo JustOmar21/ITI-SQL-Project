@@ -15,7 +15,13 @@ BEGIN
 	DECLARE @InstructorID INT;
 	SELECT  @InstructorID = ID FROM Instructor WHERE Email = ORIGINAL_LOGIN();
 
-	set @Total_TimeHours = DATEDIFF(HOUR, @Start_Time , @End_Time);
+	DECLARE @MinuteDiff INT = DATEDIFF(MINUTE, @Start_Time, @End_Time);
+
+	SET @MinuteDiff = CONVERT(NUMERIC(10,2), @MinuteDiff);
+
+	SET @MinuteDiff = @MinuteDiff / 60.00;
+
+	set @Total_TimeHours = @MinuteDiff;
 
 	IF EXISTS(SELECT * FROM Teaches_At WHERE CourseID = @CourseID AND InstructorID = @InstructorID )
 		SET @ClassInsException = 1; -- If the Instructor teaches the Course he entered , set the Exception flag to 1 , this ensures that only the Instructor who teaches this course can add to the question pool
@@ -38,6 +44,8 @@ BEGIN
 
 	if @CourseException = 0
 		print 'An error has occured, the Course ID you entered does not exist in Course Table'
+	ELSE IF @Total_TimeHours > 5
+		PRINT 'An error has occured, you cannot set the exam allowance time to more than 5 hours'
 	ELSE IF @ClassInsException = 0
 		print 'An Error has occured, you are not authorized to add this question to this course since you do not teach it'
 	else if @InstructorException = 0
@@ -57,7 +65,7 @@ BEGIN
 
 END;
 
-EXEC ExamInsert 'OOP Exam' , 'multiple' , '2024-1-20' , '2024-1-25' , 3 , 1 , 2 ;
+EXEC ExamInsert 'OOP Exam' , 'multiple' , '2024-1-20 10:00:00' , '2024-1-20 11:00:00' , 3 , 1;
 
 go
 
@@ -75,7 +83,13 @@ BEGIN
 	DECLARE @InstructorID INT;
 	SELECT  @InstructorID = ID FROM Instructor WHERE Email = ORIGINAL_LOGIN();
 
-	set @Total_TimeHours = DATEDIFF(HOUR, @Start_Time , @End_Time);
+	DECLARE @MinuteDiff INT = DATEDIFF(MINUTE, @Start_Time, @End_Time);
+
+	SET @MinuteDiff = CONVERT(NUMERIC(10,2), @MinuteDiff);
+
+	SET @MinuteDiff = @MinuteDiff / 60.00;
+
+	set @Total_TimeHours = @MinuteDiff;
 
 	IF EXISTS(SELECT * FROM Teaches_At WHERE CourseID = @CourseID AND InstructorID = @InstructorID )
 		SET @ClassInsException = 1; -- If the Instructor teaches the Course he entered , set the Exception flag to 1 , this ensures that only the Instructor who teaches this course can add to the question pool
@@ -98,6 +112,8 @@ BEGIN
 
 	if not exists( select * from Exam where ID = @ID )
 		print 'An error has occured, the Exam ID you entered does not exist'
+	ELSE IF @Total_TimeHours > 5
+		PRINT 'An error has occured, you cannot set the exam allowance time to more than 5 hours'
 	ELSE IF @ClassInsException = 0
 		print 'An Error has occured, you are not authorized to update this question to this course since you do not teach it'
 	else if @CourseException = 0
