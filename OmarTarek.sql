@@ -1,6 +1,33 @@
 ---------------------------------------------STUDENT TABLE OPERATIONS #Start--------------------------------------------------------------------
 
-CREATE PROCEDURE StudentInsert @Name nvarchar(max) , @Email nvarchar(450) , @DOB date , @IntakeID int , @TrackID int , @ClassID int
+
+CREATE PROCEDURE DeleteLoginAndUser
+    @EmailToDelete NVARCHAR(255)
+AS
+BEGIN
+    DECLARE @SqlStatement NVARCHAR(MAX);
+
+    -- Check if the login exists
+    IF EXISTS (SELECT 1 FROM sys.server_principals WHERE name = @EmailToDelete)
+    BEGIN
+        -- Check if the user exists
+        IF EXISTS (SELECT 1 FROM sys.database_principals WHERE name = @EmailToDelete)
+        BEGIN
+            -- Delete the user
+            SET @SqlStatement = 'DROP USER ' + QUOTENAME(@EmailToDelete) + ';';
+            EXEC sp_executesql @SqlStatement;
+        END
+
+        -- Delete the login
+        SET @SqlStatement = 'DROP LOGIN ' + QUOTENAME(@EmailToDelete) + ';';
+        EXEC sp_executesql @SqlStatement;
+    END
+END;
+
+GO
+
+
+ALTER PROCEDURE StudentInsert @Name nvarchar(max) , @Email nvarchar(450) , @DOB date , @IntakeID int , @TrackID int , @ClassID int
 AS
 BEGIN -- Insertion Process for Student Table 
 	declare @TrackException bit = 0;
@@ -29,15 +56,30 @@ BEGIN -- Insertion Process for Student Table
 	else if @EmailException = 1
 		print 'An error has occured, the Email you entered already exists , enter a unique Email'
 	else
-		insert into Student values (@Name , @Email , @DOB , @IntakeID , @TrackID , @ClassID);
+		begin
+			insert into Student values (@Name , @Email , @DOB , @IntakeID , @TrackID , @ClassID);
+			DECLARE @Password NVARCHAR(50) = '12345';
+			DECLARE @DefaultDatabase NVARCHAR(255) = 'Examination System';
+			DECLARE @SqlStatement NVARCHAR(MAX);
 
+			-- Construct the dynamic SQL statement
+			SET @SqlStatement = 'CREATE LOGIN ' + QUOTENAME(@Email) + ' WITH PASSWORD = ''' + @Password + ''', DEFAULT_DATABASE = ' + QUOTENAME(@DefaultDatabase) + ';';
+			EXEC sp_executesql @SqlStatement;
+
+			-- Create user and add to role
+			SET @SqlStatement = 'CREATE USER ' + QUOTENAME(@Email) + ' FOR LOGIN ' + QUOTENAME(@Email) + ';';
+			EXEC sp_executesql @SqlStatement;
+
+			SET @SqlStatement = 'ALTER ROLE Student ADD MEMBER ' + QUOTENAME(@Email) + ';';
+			EXEC sp_executesql @SqlStatement;
+		end
 END;
 
 EXEC StudentInsert 'Omar Tarek' , 'tarekes68@gmail.com' , '2001-6-12' , 3 , 1 , 2 ;
 
 go
 
-CREATE PROCEDURE StudentUpdate @ID int, @Name nvarchar(max) , @Email nvarchar(450) , @DOB date , @IntakeID int , @TrackID int , @ClassID int
+ALTER PROCEDURE StudentUpdate @ID int, @Name nvarchar(max) , @Email nvarchar(450) , @DOB date , @IntakeID int , @TrackID int , @ClassID int
 AS
 BEGIN -- Update Process for Student Table 
 	declare @TrackException bit = 0;
@@ -72,15 +114,35 @@ BEGIN -- Update Process for Student Table
 	else if @EmailException = 1
 		print 'An error has occured, the Email you entered already exists , enter a unique Email'
 	else
-		UPDATE Student set [Name] = @Name , Email = @Email , DOB = @DOB , IntakeID = @IntakeID , TrackID = @TrackID , ClassID = @ClassID where ID = @ID;
+		BEGIN
+			DECLARE @Password NVARCHAR(50) = '12345';
+			DECLARE @DefaultDatabase NVARCHAR(255) = 'Examination System';
+			DECLARE @SqlStatement NVARCHAR(MAX);
+			DECLARE @oldEmail nvarchar(450);
+			SELECT @oldEmail = Email FROM Student WHERE ID = @ID;
 
+			EXEC DeleteLoginAndUser @EmailToDelete = @oldEmail
+
+			UPDATE Student set [Name] = @Name , Email = @Email , DOB = @DOB , IntakeID = @IntakeID , TrackID = @TrackID , ClassID = @ClassID where ID = @ID;
+			
+			-- Construct the dynamic SQL statement
+			SET @SqlStatement = 'CREATE LOGIN ' + QUOTENAME(@Email) + ' WITH PASSWORD = ''' + @Password + ''', DEFAULT_DATABASE = ' + QUOTENAME(@DefaultDatabase) + ';';
+			EXEC sp_executesql @SqlStatement;
+
+			-- Create user and add to role
+			SET @SqlStatement = 'CREATE USER ' + QUOTENAME(@Email) + ' FOR LOGIN ' + QUOTENAME(@Email) + ';';
+			EXEC sp_executesql @SqlStatement;
+
+			SET @SqlStatement = 'ALTER ROLE Student ADD MEMBER ' + QUOTENAME(@Email) + ';';
+			EXEC sp_executesql @SqlStatement;
+		END
 END;
 
 EXEC StudentUpdate 2 , 'Omar Tarek El-Sayed Ali Badawy' , 'tarekes68@gmail.com' , '2001-6-12' , 3 , 1 , 2 ;
 
 GO
 
-CREATE PROCEDURE StudentDelete @ID int
+ALTER PROCEDURE StudentDelete @ID int
 AS
 BEGIN -- Deletion Process for Student Table 
 	DECLARE @IDException BIT = 0;
@@ -93,8 +155,13 @@ BEGIN -- Deletion Process for Student Table
 	if @IDException = 0
 		print 'An error has occured, The Student ID you entered does not exist in Student Table'
 	else
-		DELETE FROM Student WHERE ID = @ID;
+		begin
+			DECLARE @oldEmail nvarchar(450);
+			SELECT @oldEmail = Email FROM Student WHERE ID = @ID;
 
+			EXEC DeleteLoginAndUser @EmailToDelete = @oldEmail
+			DELETE FROM Student WHERE ID = @ID;
+		end
 END;
 
 EXEC StudentDelete 3
@@ -133,7 +200,7 @@ GO
 --ALTER ROLE db_owner ADD MEMBER "Omar Tarek";
 --TESTING DO NOT USE
 
-CREATE PROCEDURE CreateQuestion @Body nvarchar(max) , @Type nvarchar(100) , @CorrectChoice int , @CourseID int , @Choice1 nvarchar(450) = null , @Choice2 nvarchar(450) = null , @Choice3 nvarchar(450) = null  , @Choice4 nvarchar(450) = null
+ALTER PROCEDURE CreateQuestion @Body nvarchar(max) , @Type nvarchar(100) , @CorrectChoice int , @CourseID int , @Choice1 nvarchar(450) = null , @Choice2 nvarchar(450) = null , @Choice3 nvarchar(450) = null  , @Choice4 nvarchar(450) = null
 AS
 BEGIN -- Insertion process for Question and Question_Choices Table
 	
@@ -252,10 +319,18 @@ EXEC ViewQuestions;
 
 GO
 
-CREATE PROCEDURE DeleteQuestion @ID INT
+ALTER PROCEDURE DeleteQuestion @ID INT
 AS
 BEGIN -- Deletion Process for Question and Question_Choices Table 
 	DECLARE @IDException BIT = 0;
+	DECLARE @ClassInsException BIT = 0;
+	DECLARE @CourseID INT;
+	DECLARE @InstuctorID INT;
+	SELECT  @InstuctorID = ID FROM Instructor WHERE Email = ORIGINAL_LOGIN();
+	SELECT @CourseID = CourseID FROM Question WHERE ID = @ID;
+
+	IF EXISTS(SELECT * FROM Teaches_At WHERE CourseID = @CourseID AND InstructorID = @InstuctorID )
+		SET @ClassInsException = 1; -- If the Instructor teaches the Course he entered , set the Exception flag to 1 , this ensures that only the Instructor who teaches this course can add to the question pool
 
 
 	if exists(select * from Question where ID = @ID)
@@ -264,6 +339,8 @@ BEGIN -- Deletion Process for Question and Question_Choices Table
 
 	if @IDException = 0
 		print 'An error has occured, The Question ID you entered does not exist in Student Table'
+	ELSE IF @ClassInsException = 0
+		print 'An Error has occured, you are not authorized to add this question to this course since you do not teach it'
 	else
 		DELETE FROM Question WHERE ID = @ID;
 
@@ -275,12 +352,12 @@ EXEC DeleteQuestion 1
 GO
 
 
-CREATE PROCEDURE UpdateQuestion @ID INT , @Body nvarchar(max) , @Type nvarchar(100) , @CorrectChoice int , @CourseID int , @Choice1 nvarchar(450) = null , @Choice2 nvarchar(450) = null , @Choice3 nvarchar(450) = null  , @Choice4 nvarchar(450) = null
+ALTER PROCEDURE UpdateQuestion @ID INT , @Body nvarchar(max) , @Type nvarchar(100) , @CorrectChoice int , @CourseID int , @Choice1 nvarchar(450) = null , @Choice2 nvarchar(450) = null , @Choice3 nvarchar(450) = null  , @Choice4 nvarchar(450) = null
 AS
 BEGIN -- Insertion process for Question and Question_Choices Table
 	
 	DECLARE @InstuctorID INT;
-	SELECT  @InstuctorID = 1--ID FROM Instructor WHERE Email = ORIGINAL_LOGIN();
+	SELECT  @InstuctorID = ID FROM Instructor WHERE Email = ORIGINAL_LOGIN();
 	DECLARE @CourseException BIT = 0;
 	DECLARE @ChoiceException BIT = 0;
 	DECLARE @TypeException INT = 0;
@@ -321,7 +398,7 @@ BEGIN -- Insertion process for Question and Question_Choices Table
 		print 'An error has occured, Type Text cannot have the correct choice value be anything other than 1'
 	ELSE IF @CourseException = 0
 		print 'An error has occured, the Course ID you entered does not exist '
-	ELSE IF @ClassInsException = 25
+	ELSE IF @ClassInsException = 0
 		print 'An Error has occured, you are not authorized to add this question to this course since you do not teach it'
 	ELSE
 		BEGIN
@@ -527,5 +604,6 @@ EXEC ViewIntake
 
 
 ---------------------------------------------Intake TABLE OPERATIONS #End--------------------------------------------------------------------
+
 
 

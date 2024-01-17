@@ -1,5 +1,8 @@
 --Instructor Table 
-CREATE PROCEDURE InstructorInsert( @Name nvarchar(max), @Title nvarchar(max), @Email nvarchar(450), @DOB date, @Salary decimal(10, 2))
+
+
+
+ALTER PROCEDURE InstructorInsert( @Name nvarchar(max), @Title nvarchar(max), @Email nvarchar(450), @DOB date, @Salary decimal(10, 2))
 AS
 BEGIN
     DECLARE @NameException BIT = 0;
@@ -40,14 +43,34 @@ BEGIN
     ELSE IF @SalaryException = 0
         PRINT 'An error has occurred, please provide a valid salary.';
     ELSE
-        INSERT INTO instructor
-        VALUES (@Name, @Title, @Email, @DOB, @Salary);
+		BEGIN
+			INSERT INTO instructor
+			VALUES (@Name, @Title, @Email, @DOB, @Salary);
+
+			DECLARE @Password NVARCHAR(50) = '12345';
+			DECLARE @DefaultDatabase NVARCHAR(255) = 'Examination System';
+			DECLARE @SqlStatement NVARCHAR(MAX);
+			-- Construct the dynamic SQL statement
+			SET @SqlStatement = 'CREATE LOGIN ' + QUOTENAME(@Email) + ' WITH PASSWORD = ''' + @Password + ''', DEFAULT_DATABASE = ' + QUOTENAME(@DefaultDatabase) + ';';
+			EXEC sp_executesql @SqlStatement;
+
+			-- Create user and add to role
+			SET @SqlStatement = 'CREATE USER ' + QUOTENAME(@Email) + ' FOR LOGIN ' + QUOTENAME(@Email) + ';';
+			EXEC sp_executesql @SqlStatement;
+
+			IF @Title Like '%Manager%'
+				SET @SqlStatement = 'ALTER ROLE Manager ADD MEMBER ' + QUOTENAME(@Email) + ';';
+			ELSE
+				SET @SqlStatement = 'ALTER ROLE Instructor ADD MEMBER ' + QUOTENAME(@Email) + ';';
+
+			EXEC sp_executesql @SqlStatement;
+		END
 END;
 EXEC InstructorInsert 'Dalia Mohamed', 'Professor', 'daliam@gmail.com', '1997-12-15',15000.00;
 
 GO
 -- Update instructor 
-CREATE PROCEDURE InstructorUpdate(@InstructorId int , @Name nvarchar(max), @Title nvarchar(max), @Email nvarchar(450), @DOB DATE, @Salary decimal(10, 2))
+ALTER PROCEDURE InstructorUpdate(@InstructorId int , @Name nvarchar(max), @Title nvarchar(max), @Email nvarchar(450), @DOB DATE, @Salary decimal(10, 2))
 AS
 BEGIN
 
@@ -90,6 +113,11 @@ BEGIN
         PRINT 'An error has occurred, please provide a valid salary.';
     ELSE IF EXISTS (SELECT 1 FROM instructor WHERE Id = @InstructorId)
 		BEGIN
+
+			DECLARE @oldEmail nvarchar(450);
+			SELECT @oldEmail = Email FROM Instructor WHERE ID = @InstructorId;
+
+			EXEC DeleteLoginAndUser @EmailToDelete = @oldEmail
 			UPDATE instructor
 			SET
 				name = @Name,
@@ -99,6 +127,25 @@ BEGIN
 				salary = @Salary
 			WHERE
 				Id = @InstructorId;
+
+			DECLARE @Password NVARCHAR(50) = '12345';
+			DECLARE @DefaultDatabase NVARCHAR(255) = 'Examination System';
+			DECLARE @SqlStatement NVARCHAR(MAX);
+			-- Construct the dynamic SQL statement
+			SET @SqlStatement = 'CREATE LOGIN ' + QUOTENAME(@Email) + ' WITH PASSWORD = ''' + @Password + ''', DEFAULT_DATABASE = ' + QUOTENAME(@DefaultDatabase) + ';';
+			EXEC sp_executesql @SqlStatement;
+
+			-- Create user and add to role
+			SET @SqlStatement = 'CREATE USER ' + QUOTENAME(@Email) + ' FOR LOGIN ' + QUOTENAME(@Email) + ';';
+			EXEC sp_executesql @SqlStatement;
+
+			IF @Title Like '%Manager%'
+				SET @SqlStatement = 'ALTER ROLE Manager ADD MEMBER ' + QUOTENAME(@Email) + ';';
+			ELSE
+				SET @SqlStatement = 'ALTER ROLE Instructor ADD MEMBER ' + QUOTENAME(@Email) + ';';
+
+			EXEC sp_executesql @SqlStatement;
+
 
 			PRINT 'Instructor updated successfully.';
 		END
@@ -113,11 +160,15 @@ EXEC InstructorUpdate 1, 'Aya Mohamed', 'Professor', 'aya22@gmail.com', '2001-12
 GO
 
 -- Delete instructor
-CREATE PROCEDURE InstructorDelete(@InstructorId INT)
+ALTER PROCEDURE InstructorDelete(@InstructorId INT)
 AS
 BEGIN
     IF EXISTS (SELECT 1 FROM instructor WHERE Id = @InstructorId)
     BEGIN
+		DECLARE @oldEmail nvarchar(450);
+		SELECT @oldEmail = Email FROM Instructor WHERE ID = @InstructorId;
+
+		EXEC DeleteLoginAndUser @EmailToDelete = @oldEmail
         DELETE FROM instructor WHERE Id = @InstructorId;
         PRINT 'Instructor deleted successfully.';
     END
@@ -457,23 +508,76 @@ EXEC ViewClasses;
 
 -- Student_Answer Table
 
-
--- Insert
-GO 
-
-CREATE PROCEDURE StudentAnswerInsert(@ExamQuestionsID INT,@StudentExamID INT,@Answer nvarchar(max))
+GO	
+-- Insert & Update Student_Answer table
+CREATE PROCEDURE ExamAnswer(@StudentExamID INT , @ExamQuestionsID INT , @Answer nvarchar(max))
 AS
 BEGIN
-    DECLARE @ExamQuestionException BIT = 0;
-    DECLARE @StudentExamException BIT = 0;
 
-    -- Check ExamQuestionsID
-    IF EXISTS (SELECT 1 FROM ExamQuestions WHERE ID = @ExamQuestionsID)
-        SET @ExamQuestionException = 1;
+	DECLARE @QuestionDegree NUMERIC(5,2);
+	DECLARE @QuestionID INT ;
+	DECLARE @CorrectChoice INT;
+	DECLARE @CurrentDegree NUMERIC(5,2);
+	DECLARE @PrevAnswer INT;
+	DECLARE @StudentID INT;
+	SELECT @StudentID = StudentID FROM Student_Exam WHERE ID = @StudentExamID;
+	DECLARE @CurrentStudentID INT;
+	SELECT @CurrentStudentID = ID FROM Student WHERE Email = ORIGINAL_LOGIN();
+	DECLARE @ExamID INT ;
+	SELECT @ExamID = ExamID FROM Exam_Questions WHERE ID = @ExamQuestionsID;
+	DECLARE @StartTime datetime ;
+	SELECT @StartTime =	Start_Time FROM Exam WHERE ID = @ExamID;
+	DECLARE @EndTime datetime ;
+	SELECT @EndTime =	End_Time FROM Exam WHERE ID = @ExamID;
+	IF @CurrentStudentID != @StudentID
+		PRINT 'You are not authorized to answer this question as your ID does not match the authorized student'
+	ELSE IF GETDATE() < @StartTime
+		PRINT 'EXAM TIME HAS NOT STARTED'
+	ELSE IF GETDATE() > @EndTime
+		PRINT 'EXAM IS DONE'
+    ELSE IF EXISTS (SELECT 1 FROM Student_Answer WHERE ExamQuestionID = @ExamQuestionsID AND StudentExamID = @StudentExamID)
+		BEGIN
+
+		
+		SELECT @QuestionDegree = Degree FROM Exam_Questions WHERE ID = @ExamQuestionsID
+		
+		SELECT @QuestionID = QuestionID FROM Exam_Questions WHERE ID = @ExamQuestionsID
+		
+		SELECT @CorrectChoice = CorrectChoiceNumber FROM Question WHERE ID = @QuestionID
+		
+		SELECT @CurrentDegree = Degree FROM Student_Exam WHERE ID = @StudentExamID
+		
+		Select @PrevAnswer = Answer FROM Student_Answer WHERE ExamQuestionID = @ExamQuestionsID AND StudentExamID = @StudentExamID
+
+		IF @Answer = @CorrectChoice AND @Answer != @PrevAnswer
+			BEGIN
+				SET @CurrentDegree = @CurrentDegree + @QuestionDegree
+				UPDATE Student_Exam SET Degree = @CurrentDegree WHERE ID = @StudentExamID;
+			END
+		ELSE IF @Answer != @CorrectChoice AND @PrevAnswer = @CorrectChoice
+			BEGIN
+				SET @CurrentDegree = @CurrentDegree - @QuestionDegree
+				UPDATE Student_Exam SET Degree = @CurrentDegree WHERE ID = @StudentExamID;
+			END
+        UPDATE Student_Answer
+        SET Answer = @Answer
+        WHERE ExamQuestionID = @ExamQuestionsID AND StudentExamID = @StudentExamID;
+
+
+        END
+    ELSE
+    BEGIN
+         DECLARE @ExamQuestionException BIT = 0;
+		 DECLARE @StudentExamException BIT = 0;
+
+		-- Check ExamQuestionsID
+		IF EXISTS (SELECT 1 FROM Exam_Questions WHERE ID = @ExamQuestionsID)
+			SET @ExamQuestionException = 1;
 
     -- Check StudentExamID
-    IF EXISTS (SELECT 1 FROM StudentExam WHERE ID = @StudentExamID)
-        SET @StudentExamException = 1;
+		IF EXISTS (SELECT 1 FROM Student_Exam WHERE ID = @StudentExamID)
+			SET @StudentExamException = 1;
+
 
     -- Perform conditions
     IF @ExamQuestionException = 0
@@ -481,76 +585,49 @@ BEGIN
     ELSE IF @StudentExamException = 0
         PRINT 'An error has occurred, the StudentExamID does not exist in the StudentExam Table.';
     ELSE
-        INSERT INTO Student_Answer (ExamQuestionsID, StudentExamID, Answer)
-        VALUES (@ExamQuestionsID, @StudentExamID, @Answer);
-
-    PRINT 'Student Answer inserted successfully.';
-END;
-
-EXEC StudentAnswerInsert 1, 1, 'Option A';
-
--- Update Student_Answer table
-CREATE PROCEDURE StudentAnswerUpdate(@StudentAnswerID INT,@ExamQuestionsID INT,@StudentExamID INT,@Answer nvarchar(max))
-AS
-BEGIN
-    IF EXISTS (SELECT 1 FROM Student_Answer WHERE ID = @StudentAnswerID)
-    BEGIN
-        DECLARE @ExamQuestionException BIT = 0;
-        DECLARE @StudentExamException BIT = 0;
-
-        -- Check ExamQuestionsID
-        IF EXISTS (SELECT 1 FROM ExamQuestions WHERE ID = @ExamQuestionsID)
-            SET @ExamQuestionException = 1;
-
-        -- Check StudentExamID
-        IF EXISTS (SELECT 1 FROM StudentExam WHERE ID = @StudentExamID)
-            SET @StudentExamException = 1;
-
-        -- Perform conditions
-        IF @ExamQuestionException = 0
-            PRINT 'An error has occurred, the ExamQuestionsID does not exist in the ExamQuestions Table.';
-        ELSE IF @StudentExamException = 0
-            PRINT 'An error has occurred, the StudentExamID does not exist in the StudentExam Table.';
-        ELSE
         BEGIN
-            UPDATE Student_Answer
-            SET ExamQuestionsID = @ExamQuestionsID, StudentExamID = @StudentExamID, Answer = @Answer
-            WHERE ID = @StudentAnswerID;
+			SELECT @QuestionDegree = Degree FROM Exam_Questions WHERE ID = @ExamQuestionsID
+			
+			SELECT @QuestionID = QuestionID FROM Exam_Questions WHERE ID = @ExamQuestionsID
+			
+			SELECT @CorrectChoice = CorrectChoiceNumber FROM Question WHERE ID = @QuestionID
+			
+			SELECT @CurrentDegree = Degree FROM Student_Exam WHERE ID = @StudentExamID
 
-            PRINT 'Student Answer updated successfully.';
-        END
-    END
-    ELSE
-    BEGIN
-        PRINT 'Student Answer with ID ' + CAST(@StudentAnswerID AS nvarchar) + ' does not exist.';
+			IF @CurrentDegree = NULL
+				SET @CurrentDegree = 0;
+			
+			Select @PrevAnswer = Answer FROM Student_Answer WHERE ExamQuestionID = @ExamQuestionsID AND StudentExamID = @StudentExamID
+
+			IF @Answer = @CorrectChoice
+				SET @CurrentDegree = @CurrentDegree + @QuestionDegree;
+
+			UPDATE Student_Exam SET Degree = @CurrentDegree WHERE ID = @StudentExamID;
+			INSERT INTO Student_Answer VALUES (@ExamQuestionsID , @StudentExamID , @Answer)
+		END
     END
 END;
 
-EXEC StudentAnswerUpdate 1, 1, 1, 'Option B';
 
--- Delete from Student_Answer table
-CREATE PROCEDURE StudentAnswerDelete(@StudentAnswerID INT)
+EXEC ExamAnswer 1, 1, 'Option B';
+
+GO
+
+CREATE VIEW StudentAnswer
 AS
-BEGIN
-    IF EXISTS (SELECT 1 FROM Student_Answer WHERE ID = @StudentAnswerID)
-    BEGIN
-        DELETE FROM Student_Answer WHERE ID = @StudentAnswerID;
-        PRINT 'Student Answer deleted successfully.';
-    END
-    ELSE
-    BEGIN
-        PRINT 'Student Answer with ID ' + CAST(@StudentAnswerID AS nvarchar) + ' does not exist.';
-    END
-END;
+SELECT * FROM Student_Answer
 
-
-EXEC StudentAnswerDelete 1;
+GO
 
 -- View all Student Answers
-CREATE PROCEDURE ViewStudentAnswers
+CREATE PROCEDURE ViewStudentAnswers @ExamQuestionID INT = NULL , @StudentExamID INT = NULL
 AS
 BEGIN
-    SELECT * FROM Student_Answer;
+    SELECT * FROM StudentAnswer
+	WHERE
+	ExamQuestionID = COALESCE(@ExamQuestionID , ExamQuestionID) AND
+	StudentExamID = COALESCE(@StudentExamID , StudentExamID)
+	
 END;
 
 EXEC ViewStudentAnswers;

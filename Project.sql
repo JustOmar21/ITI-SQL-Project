@@ -151,10 +151,10 @@ create table Exam_Questions
 
 create table Student_Answer
 (
-	ID int primary key identity(1,1),
 	ExamQuestionID int not null,
 	StudentExamID int not null,
 	Answer nvarchar(max),
 	constraint fk_Answer_ExamQuestion foreign key (ExamQuestionID) references Exam_Questions(ID) ON DELETE CASCADE,
-	constraint fk_Answer_StudentExam foreign key (StudentExamID) references Student_Exam(ID) ON DELETE NO ACTION
+	constraint fk_Answer_StudentExam foreign key (StudentExamID) references Student_Exam(ID) ON DELETE NO ACTION ,
+	constraint pk_StudentAnswer primary key (ExamQuestionID , StudentExamID)
 )

@@ -2,7 +2,7 @@
 --Exam Table 
 
 -- Insert Exam
-CREATE PROCEDURE ExamInsert @Title nvarchar(300) , @Type nvarchar(100) , @Start_Time datetime , @End_Time datetime , @Year int, @CourseID int, @InstructorID int
+ALTER PROCEDURE ExamInsert @Title nvarchar(300) , @Type nvarchar(100) , @Start_Time datetime , @End_Time datetime , @Year int, @CourseID int
 AS
 BEGIN
 	declare @CourseException bit = 0;
@@ -11,8 +11,15 @@ BEGIN
 	declare @Total_TimeHours numeric(3,2);
 	declare @YearException bit = 0;
 	declare @TypeException bit = 0;
+	declare @ClassInsException bit = 0;
+	DECLARE @InstructorID INT;
+	SELECT  @InstructorID = ID FROM Instructor WHERE Email = ORIGINAL_LOGIN();
 
 	set @Total_TimeHours = DATEDIFF(HOUR, @Start_Time , @End_Time);
+
+	IF EXISTS(SELECT * FROM Teaches_At WHERE CourseID = @CourseID AND InstructorID = @InstructorID )
+		SET @ClassInsException = 1; -- If the Instructor teaches the Course he entered , set the Exception flag to 1 , this ensures that only the Instructor who teaches this course can add to the question pool
+
 
 	if Year(@Start_Time) = Year(@End_Time) AND Year(@Start_Time) = @Year
 		set @YearException = 1;
@@ -31,6 +38,8 @@ BEGIN
 
 	if @CourseException = 0
 		print 'An error has occured, the Course ID you entered does not exist in Course Table'
+	ELSE IF @ClassInsException = 0
+		print 'An Error has occured, you are not authorized to add this question to this course since you do not teach it'
 	else if @InstructorException = 0
 		print 'An error has occured, the Instructor ID you entered does not exist in Instructor Table'
 	else if @TimeException = 1
@@ -53,7 +62,7 @@ EXEC ExamInsert 'OOP Exam' , 'multiple' , '2024-1-20' , '2024-1-25' , 3 , 1 , 2 
 go
 
 -- Update Exam
-CREATE PROCEDURE ExamUpdate @ID int, @Title nvarchar(300) , @Type nvarchar(100) , @Start_Time datetime , @End_Time datetime , @Year int, @CourseID int, @InstructorID int
+ALTER PROCEDURE ExamUpdate @ID int, @Title nvarchar(300) , @Type nvarchar(100) , @Start_Time datetime , @End_Time datetime , @Year int, @CourseID int
 AS
 BEGIN
 	declare @CourseException bit = 0;
@@ -62,8 +71,15 @@ BEGIN
 	declare @Total_TimeHours numeric(3,2);
 	declare @YearException bit = 0;
 	declare @TypeException bit = 0;
+	declare @ClassInsException bit = 0;
+	DECLARE @InstructorID INT;
+	SELECT  @InstructorID = ID FROM Instructor WHERE Email = ORIGINAL_LOGIN();
 
 	set @Total_TimeHours = DATEDIFF(HOUR, @Start_Time , @End_Time);
+
+	IF EXISTS(SELECT * FROM Teaches_At WHERE CourseID = @CourseID AND InstructorID = @InstructorID )
+		SET @ClassInsException = 1; -- If the Instructor teaches the Course he entered , set the Exception flag to 1 , this ensures that only the Instructor who teaches this course can add to the question pool
+
 
 	if Year(@Start_Time) = Year(@End_Time) AND Year(@Start_Time) = @Year
 		set @YearException = 1;
@@ -82,6 +98,8 @@ BEGIN
 
 	if not exists( select * from Exam where ID = @ID )
 		print 'An error has occured, the Exam ID you entered does not exist'
+	ELSE IF @ClassInsException = 0
+		print 'An Error has occured, you are not authorized to update this question to this course since you do not teach it'
 	else if @CourseException = 0
 		print 'An error has occured, the Course ID you entered does not exist in Course Table'
 	else if @InstructorException = 0
@@ -123,18 +141,29 @@ EXEC ExamUpdate 1, 'SQL Exam', 'true and false', '2024-1-22', '2024-1-25' , 5 , 
 GO
 
 -- Delete Exam
-CREATE PROCEDURE ExamDelete @ID int
+ALTER PROCEDURE ExamDelete @ID int
 AS
 BEGIN 
 	DECLARE @IDException BIT = 0;
+	DECLARE @ClassInsException BIT = 0;
+	DECLARE @CourseID INT;
+	DECLARE @InstuctorID INT;
+	SELECT  @InstuctorID = ID FROM Instructor WHERE Email = ORIGINAL_LOGIN();
+	SELECT @CourseID = CourseID FROM Exam WHERE ID = @ID;
 
 
 	if exists(select * from Exam where Exam.ID = @ID)
 		set @IDException = 1; -- If the Exam exists, set the exception flag to 1
 
+	IF EXISTS(SELECT * FROM Teaches_At WHERE CourseID = @CourseID AND InstructorID = @InstuctorID )
+		SET @ClassInsException = 1; -- If the Instructor teaches the Course he entered , set the Exception flag to 1 , this ensures that only the Instructor who teaches this course can add to the question pool
+
+
 
 	if @IDException = 0
 		print 'An error has occured, The Exam ID you entered does not exist in Exam Table'
+	ELSE IF @ClassInsException = 0
+		print 'An Error has occured, you are not authorized to delete this question to this course since you do not teach it'
 	else
 		DELETE FROM Exam WHERE ID = @ID;
 
@@ -149,7 +178,7 @@ CREATE VIEW ExamData AS SELECT * FROM Exam;
 
 GO
 
-CREATE PROCEDURE ReadExam @ID int = NULL,@Title nvarchar(300) = NULL, @Type nvarchar(100) = NULL, @Start_Time datetime = NULL, @End_Time datetime = NULL, @Year int = NULL, @CourseID int = NULL, @InstructorID int = NULL
+ALTER PROCEDURE ReadExam @ID int = NULL,@Title nvarchar(300) = NULL, @Type nvarchar(100) = NULL, @Start_Time datetime = NULL, @End_Time datetime = NULL, @Year int = NULL, @CourseID int = NULL, @InstructorID int = NULL
 AS
 BEGIN 
 	SELECT * FROM ExamData 
@@ -172,11 +201,19 @@ GO
 --Exam_Question Table
 
 -- Insert Exam_Questions
-CREATE PROCEDURE Exam_QuestionsInsert @Mode NVARCHAR(100) , @ExamID int , @QuestionID int = null , @Degree numeric(5,2) = null 
+ALTER PROCEDURE Exam_QuestionsInsert @Mode NVARCHAR(100) , @ExamID int , @QuestionID int = null , @Degree numeric(5,2) = null 
 AS
 BEGIN
 	
-	IF @Mode != 'Auto' AND @Mode != 'Manual'
+	DECLARE @CoursesID INT ;
+	SELECT @CoursesID = CourseID FROM Exam WHERE ID = @ExamID 
+
+	DECLARE @InstuctorID INT;
+	SELECT  @InstuctorID = ID FROM Instructor WHERE Email = ORIGINAL_LOGIN();
+
+	IF NOT EXISTS(SELECT * FROM Teaches_At WHERE CourseID = @CoursesID AND InstructorID = @InstuctorID )
+		PRINT 'You are not authorized to add question to this exam'
+	ELSE IF @Mode != 'Auto' AND @Mode != 'Manual'
 		print 'You can only choose Auto or Manual Mode'
 	ELSE IF NOT EXISTS(SELECT * FROM Exam WHERE ID = @ExamID)
 		PRINT 'The exam ID you entered is does not exist'
@@ -237,10 +274,19 @@ EXEC Exam_QuestionsInsert 1, 1 , 50;
 go
 
 -- Update Exam_Questions
-CREATE PROCEDURE Exam_QuestionsUpdate @ID int, @QuestionID int , @ExamID int , @Degree numeric(5,2) 
+ALTER PROCEDURE Exam_QuestionsUpdate @ID int, @QuestionID int , @ExamID int , @Degree numeric(5,2) 
 AS
 BEGIN
-	IF EXISTS (SELECT 1 FROM Exam_Questions WHERE ID = @ID)
+
+	DECLARE @CoursesID INT ;
+	SELECT @CoursesID = CourseID FROM Exam WHERE ID = @ExamID 
+
+	DECLARE @InstuctorID INT;
+	SELECT  @InstuctorID = ID FROM Instructor WHERE Email = ORIGINAL_LOGIN();
+
+	IF NOT EXISTS(SELECT * FROM Teaches_At WHERE CourseID = @CoursesID AND InstructorID = @InstuctorID )
+		PRINT 'You are not authorized to update this question from this exam'
+	ELSE IF EXISTS (SELECT 1 FROM Exam_Questions WHERE ID = @ID)
 		BEGIN
 			declare @QuestionException bit = 0;
 			declare @ExamException bit = 0;
@@ -274,7 +320,7 @@ EXEC Exam_QuestionsUpdate 1, 2, 2, 45;
 GO
 
 -- Delete Exam_Questions
-CREATE PROCEDURE Exam_QuestionsDelete @ID int
+ALTER PROCEDURE Exam_QuestionsDelete @ID int
 AS
 BEGIN 
 	DECLARE @IDException BIT = 0;
@@ -284,7 +330,17 @@ BEGIN
 		set @IDException = 1; -- If the Exam_Questions exists, set the exception flag to 1
 
 
-	if @IDException = 0
+	DECLARE @CoursesID INT ;
+	DECLARE @ExamID INT;
+	SELECT @ExamID = ExamID FROM Exam_Questions WHERE ID = @ID
+	SELECT @CoursesID = CourseID FROM Exam WHERE ID = @ExamID 
+
+	DECLARE @InstuctorID INT;
+	SELECT  @InstuctorID = ID FROM Instructor WHERE Email = ORIGINAL_LOGIN();
+
+	IF NOT EXISTS(SELECT * FROM Teaches_At WHERE CourseID = @CoursesID AND InstructorID = @InstuctorID )
+		PRINT 'You are not authorized to delete this question from the exam'
+	ELSE if @IDException = 0
 		print 'An error has occured, The Exam_Questions ID you entered does not exist in Exam_Questions Table'
 	else
 		DELETE FROM Exam_Questions WHERE ID = @ID;
@@ -337,12 +393,19 @@ GO
 --Student_Exam Table
 
 -- Insert Student_Exam
-CREATE PROCEDURE Student_ExamInsert @StudentID int , @ExamID int , @Degree numeric(5,2) 
+ALTER PROCEDURE Student_ExamInsert @StudentID int , @ExamID int
 AS
 BEGIN
 	declare @StudentException bit = 0;
 	declare @ExamException bit = 0;
-
+	DECLARE @InstuctorID INT;
+	SELECT  @InstuctorID = ID FROM Instructor WHERE Email = ORIGINAL_LOGIN();
+	declare @MaxDegree numeric(5,2);
+	declare @MinDegree numeric(5,2);
+	declare @CourseID INT ;
+	select @CourseID = CourseID from Exam where ID = @ExamID
+	select @MaxDegree = Max_Degree from Course where ID = @CourseID
+	select @MinDegree = Min_Degree from Course where ID = @CourseID
 
 	if exists(select * from Student where Student.ID = @StudentID)
 		set @StudentException = 1; -- If the Student exists, set the exception flag to 1
@@ -351,12 +414,21 @@ BEGIN
 		set @ExamException = 1; -- If the Exam exists, set the exception flag to 1
 
 
+
 	if @StudentException = 0
 		print 'An error has occured, the Student ID you entered does not exist in Student Table'
 	else if @ExamException = 0
 		print 'An error has occured, the Exam ID you entered does not exist in Exam Table'
+	else if (select count(*) from Exam_Questions where ExamID = @ExamID) != 10
+		print 'An error has occured, you cannot assign this exam since the exam does not contain 10 questions'
+	else if (select sum(Degree) from Exam_Questions where ExamID = @ExamID) < @MinDegree
+		print 'An error has occured, you cannot assign this exam since the questions degree in the exam does not exceed the miniumn Degree for passing'
+	else if (select sum(Degree) from Exam_Questions where ExamID = @ExamID) > @MaxDegree
+		print 'An error has occured, you cannot assign this exam since the questions degree in the exam does exceed the maximum Degree'
+	else if not EXISTS(SELECT * FROM Teaches_At WHERE CourseID = @CourseID AND InstructorID = @InstuctorID )
+		print 'An error has occured, you are not authorized to assign students to this exam'
 	else
-		insert into Student_Exam values (@StudentID , @ExamID , @Degree);
+		insert into Student_Exam values (@StudentID , @ExamID , NULL);
 
 END;
 
@@ -365,24 +437,50 @@ EXEC Student_ExamInsert 1, 1 , 50;
 go
 
 -- Update Student_Exam
-CREATE PROCEDURE Student_ExamUpdate @ID int, @StudentID int , @ExamID int , @Degree numeric(5,2) 
+ALTER PROCEDURE Student_ExamUpdate @ID int, @StudentID int , @ExamID int
 AS
 BEGIN
-    IF EXISTS (SELECT 1 FROM Student_Exam WHERE ID = @Student_ExamID)
+    IF EXISTS (SELECT 1 FROM Student_Exam WHERE ID = @ID)
     BEGIN
-        UPDATE Student_Exam
-        SET
-            studentID = @StudentID,
-            examID = @ExamID,
-            degree  = @Degree
-        WHERE
-            ID = @Student_ExamID;
+        declare @StudentException bit = 0;
+		declare @ExamException bit = 0;
+		DECLARE @InstuctorID INT;
+		SELECT  @InstuctorID = ID FROM Instructor WHERE Email = ORIGINAL_LOGIN();
+		declare @MaxDegree numeric(5,2);
+		declare @MinDegree numeric(5,2);
+		declare @CourseID INT ;
+		select @CourseID = CourseID from Exam where ID = @ExamID
+		select @MaxDegree = Max_Degree from Course where ID = @CourseID
+		select @MinDegree = Min_Degree from Course where ID = @CourseID
 
-        PRINT 'Student_Exam updated successfully.';
-    END
+		if exists(select * from Student where Student.ID = @StudentID)
+			set @StudentException = 1; -- If the Student exists, set the exception flag to 1
+
+		if exists(select * from Exam where Exam.ID = @ExamID  )
+			set @ExamException = 1; -- If the Exam exists, set the exception flag to 1
+
+
+
+		if @StudentException = 0
+			print 'An error has occured, the Student ID you entered does not exist in Student Table'
+		else if @ExamException = 0
+			print 'An error has occured, the Exam ID you entered does not exist in Exam Table'
+		else if (select count(*) from Exam_Questions where ExamID = @ExamID) != 10
+			print 'An error has occured, you cannot assign this exam since the exam does not contain 10 questions'
+		else if (select sum(Degree) from Exam_Questions where ExamID = @ExamID) < @MinDegree
+			print 'An error has occured, you cannot assign this exam since the questions degree in the exam does not exceed the miniumn Degree for passing'
+		else if (select sum(Degree) from Exam_Questions where ExamID = @ExamID) > @MaxDegree
+			print 'An error has occured, you cannot assign this exam since the questions degree in the exam does exceed the maximum Degree'
+		else if not EXISTS(SELECT * FROM Teaches_At WHERE CourseID = @CourseID AND InstructorID = @InstuctorID )
+			print 'An error has occured, you are not authorized to assign students to this exam'
+		else if (select Degree from Student_Exam where ID = @ID) = NULL
+			PRINT 'An error has occured, this student is performing or already performed this game, you cannot modifiy his degree any longer'
+		else
+			UPDATE Student_Exam SET StudentID = @StudentID , ExamID = @ExamID WHERE ID = @ID;
+	END
     ELSE
     BEGIN
-        PRINT 'Student_Exam with ID ' + CAST(@Student_ExamID AS nvarchar) + ' does not exist.';
+        PRINT 'Student_Exam with ID ' + CAST(@ID AS nvarchar) + ' does not exist.';
     END
 END;
 
@@ -391,17 +489,24 @@ EXEC Student_ExamUpdate 1, 2, 2, 45;
 GO
 
 -- Delete Student_Exam
-CREATE PROCEDURE Student_ExamDelete @ID int
+ALTER PROCEDURE Student_ExamDelete @ID int
 AS
 BEGIN 
 	DECLARE @IDException BIT = 0;
-
+	DECLARE @InstuctorID INT;
+	SELECT  @InstuctorID = ID FROM Instructor WHERE Email = ORIGINAL_LOGIN();
+	declare @CourseID INT ;
+	DECLARE @ExamID INT ;
+	SELECT @ExamID = ExamID FROM Student_Exam WHERE ID = @ID 
+	select @CourseID = CourseID from Exam where ID = @ExamID
 
 	if exists(select * from Student_Exam where Student_Exam.ID = @ID)
 		set @IDException = 1; -- If the Student_Exam exists, set the exception flag to 1
 
 
-	if @IDException = 0
+	IF NOT EXISTS(SELECT * FROM Teaches_At WHERE CourseID = @CourseID AND InstructorID = @InstuctorID )
+		PRINT 'You are not authorized to delete this Student from the exam'
+	ELSE if @IDException = 0
 		print 'An error has occured, The Student_Exam ID you entered does not exist in Student_Exam Table'
 	else
 		DELETE FROM Student_Exam WHERE ID = @ID;
@@ -413,21 +518,40 @@ EXEC Student_ExamDelete 1
 GO
 
 -- Read Student_Exam
-CREATE VIEW Student_ExamData AS SELECT * FROM Student_Exam;
+CREATE VIEW Student_ExamData 
+AS
+SELECT SE.ID , SE.ExamID , SE.StudentID , S.[Name] , E.title , E.[Type] , E.Start_Time , E.Total_Time , SE.Degree
+FROM 
+Student_Exam SE INNER JOIN Exam E ON E.ID = SE.ExamID
+INNER JOIN Student S ON SE.StudentID = S.ID;
 
 GO
 
-CREATE PROCEDURE ReadStudent_Exam @ID int = NULL,@StudentID int = NULL, @ExamID int = NULL, @Degree numeric(5,2) = NULL
+CREATE PROCEDURE ReadStudent_Exam @ID int = NULL,@StudentID int = NULL, @ExamID int = NULL
 AS
 BEGIN 
 	SELECT * FROM Student_ExamData 
 	WHERE ID = COALESCE( @ID , ID) AND 
 	StudentID = COALESCE( @StudentID , StudentID ) AND
-	ExamID  = COALESCE( @ExamID  , ExamID  ) AND
-	Degree = COALESCE( @Degree , Degree );
+	ExamID  = COALESCE( @ExamID  , ExamID  )
+END;
+
+GO
+
+CREATE PROCEDURE CheckMyExams @ExamID int = NULL
+AS
+BEGIN 
+
+	DECLARE @StudentID INT;
+	SELECT @StudentID = ID FROM Student WHERE Email = ORIGINAL_LOGIN();
+	SELECT * FROM Student_ExamData 
+	WHERE
+	StudentID = @StudentID AND
+	ExamID  = COALESCE( @ExamID  , ExamID  )
 END;
 
 EXEC ReadStudent_Exam;
+EXEC CheckMyExams;
 GO
 
 
